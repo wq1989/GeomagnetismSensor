@@ -7,31 +7,29 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.text.format.Time;
-import android.util.Log;
 import android.view.View;
 import android.widget.*;
 
 import java.io.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MainActivity extends Activity implements SensorEventListener{
+public class MainActivity extends Activity implements SensorEventListener, View.OnClickListener{
     private float[] magnetic = new float[3];
     private float[] gravity = new float[3];
     private float[] acc = new float[3] ;
     private float[] globalAccValues = new float[3];
     private float[] globalMagValues = new float[3];
-    final private int COUNT_MAX = 1000;
+    private final int COUNT_MAX = 1000;
     private AtomicInteger counter = new AtomicInteger(0);
+    private boolean start = false;
     private SensorManager sensorManager;
     private TextView textView;
     private ProgressBar progressBar;
-    private Button startButton;
+    private Button button;
     private EditText editText;
     private File file;
     private FileOutputStream fileOutputStream;
     private OutputStreamWriter outputStreamWriter;
-    private StringBuilder stringBuilder;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,37 +43,36 @@ public class MainActivity extends Activity implements SensorEventListener{
 
         textView = (TextView)findViewById(R.id.textview);
         progressBar = (ProgressBar)findViewById(R.id.progressBar);
-        startButton = (Button)findViewById(R.id.startButton);
+        button = (Button)findViewById(R.id.startButton);
 
-        startButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startButtonAction();
-            }
-        });
+        button.setOnClickListener(this);
 
         editText = (EditText)findViewById(R.id.editText);
     }
 
     @Override
     protected void onResume() {
+        super.onResume();
         sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_FASTEST);
         //sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION), SensorManager.SENSOR_DELAY_FASTEST);
         sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_FASTEST);
         sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY), SensorManager.SENSOR_DELAY_FASTEST);
-        super.onResume();
     }
 
     @Override
     protected void onPause(){
         super.onPause();
         sensorManager.unregisterListener(this);
+    }
 
+    @Override
+    public void onClick(View v) {
+        startButtonAction();
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        stringBuilder = new StringBuilder();
+        StringBuilder stringBuilder = new StringBuilder();
         int sensor = event.sensor.getType();
         switch (sensor){
             //case Sensor.TYPE_LINEAR_ACCELERATION:
@@ -93,40 +90,16 @@ public class MainActivity extends Activity implements SensorEventListener{
         }
 
         stringBuilder.append("加速度").append("\n");
-        stringBuilder.append("x(global): " + globalAccValues[0]).append("\n");
-        stringBuilder.append("y(global): " + globalAccValues[1]).append("\n");
-        stringBuilder.append("z(global): " + globalAccValues[2]).append("\n");
+        stringBuilder.append("x: " + globalAccValues[0]).append("\n");
+        stringBuilder.append("y: " + globalAccValues[1]).append("\n");
+        stringBuilder.append("z: " + globalAccValues[2]).append("\n");
 
         stringBuilder.append("地磁気").append("\n");
         stringBuilder.append("x(east): " + globalMagValues[0]).append("\n");
         stringBuilder.append("y(north): " + globalMagValues[1]).append("\n");
         stringBuilder.append("z: " + globalMagValues[2]).append("\n");
+        createCsv(globalMagValues);
         textView.setText(stringBuilder.toString());
-    }
-
-    public void createCsv(float[] globalValue){
-        if(outputStreamWriter != null) {
-            counter.incrementAndGet();
-            try {
-                outputStreamWriter.write(String.valueOf(globalValue[0]));
-                outputStreamWriter.write(",");
-                outputStreamWriter.write(String.valueOf(globalValue[1]));
-                outputStreamWriter.write(",");
-                outputStreamWriter.write(String.valueOf(globalValue[2]));
-                outputStreamWriter.write("\n");
-
-                progressBar.setMax(COUNT_MAX);
-                progressBar.setProgress(counter.get());
-                if (counter.get() == COUNT_MAX) {
-                    counter.set(0);
-                    outputStreamWriter.close();
-                    outputStreamWriter = null;
-                    editText.getText().clear();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     public float[] convertGlobalValues(float[] deviceValues){
@@ -153,6 +126,7 @@ public class MainActivity extends Activity implements SensorEventListener{
     }
 
     public void startButtonAction(){
+        start = true;
         Time time = new Time("Asia/Tokyo");
         time.setToNow();
         String name = editText.getText().toString() + "_" + (time.month + 1) + "_" + time.monthDay + ".csv";
@@ -166,4 +140,30 @@ public class MainActivity extends Activity implements SensorEventListener{
             e.printStackTrace();
         }
     }
+
+    public void createCsv(float[] globalValue){
+        if(start) {
+            counter.incrementAndGet();
+            try {
+                outputStreamWriter.write(String.valueOf(globalValue[0]));
+                outputStreamWriter.write(",");
+                outputStreamWriter.write(String.valueOf(globalValue[1]));
+                outputStreamWriter.write(",");
+                outputStreamWriter.write(String.valueOf(globalValue[2]));
+                outputStreamWriter.write("\n");
+                progressBar.setMax(COUNT_MAX);
+                progressBar.setProgress(counter.get());
+                if (counter.get() == COUNT_MAX) {
+                    counter.set(0);
+                    outputStreamWriter.close();
+                    outputStreamWriter = null;
+                    editText.getText().clear();
+                    start = false;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
 }
